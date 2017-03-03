@@ -13,7 +13,7 @@ namespace LocalWebServer
         static void Main(string[] args)
         {
             var options = new Options();
-
+            
             if (Parser.Default.ParseArguments(args, options))
             {
                 var root = options.Root;
@@ -28,8 +28,9 @@ namespace LocalWebServer
                     var isVerbose = options.Verbose;
                     var webServer = new WebServer.WebServer(root, port, isVerbose);
                     webServer.Run();
-                }
-
+                    Console.ReadKey();
+                    webServer.Stop();
+                }                
             }
         }
     }

@@ -26,7 +26,7 @@ namespace WebServer
 
         public void Run()
         {
-            _listener.Prefixes.Add("http://*:" + _port.ToString() + "/");
+            _listener.Prefixes.Add("http://*:" + _port + "/");
             _listener.Start();
 
             while (true)
@@ -34,7 +34,7 @@ namespace WebServer
                 try
                 {
                     var listenerContext = _listener.GetContext();
-                    Process(listenerContext);
+                    ProcessRequest(listenerContext);
                 }
                 catch
                 {
@@ -43,36 +43,40 @@ namespace WebServer
             }
         }
 
-        private void Process(HttpListenerContext listenerContext)
+        private void ProcessRequest(HttpListenerContext listenerContext)
         {
             string fileName = listenerContext.Request.Url.AbsolutePath;
             if(_isVerbose)
                 Logger.Log(string.Format(Resources.RenderingFileName, fileName));
-            Debugger.Launch();
             fileName = fileName.Substring(1);
-
+            Debugger.Launch();
             if (string.IsNullOrEmpty(fileName))
             {
 
                 foreach (var defaultFile in Constants.IndexFiles)
                 {
-                    if (File.Exists(Path.Combine(_root, defaultFile)))
-                    {
-                        fileName = defaultFile;
-                        break;
-                    }
+                    if (!File.Exists(Path.Combine(_root, defaultFile))) continue;
+                    fileName = defaultFile;
+                    break;
                 }
             }
 
             fileName = Path.Combine(_root, fileName);
+            var fileNameExtension = Path.GetExtension(fileName);
+            if (Constants.FilteredExtensions.ContainsKey(fileNameExtension))
+            {
+                listenerContext.Response.StatusCode = (int) HttpStatusCode.NotFound;
+                return;
+            }
+
             if (File.Exists(fileName))
             {
                 try
                 {
                     using (Stream input = new FileStream(fileName, FileMode.Open))
                     {
-                        listenerContext.Response.ContentType = MimeTypeMap.GetMimeType(Path.GetExtension(fileName));
-
+                        listenerContext.Response.ContentType = MimeTypeMap.GetMimeType(fileNameExtension);
+                        listenerContext.Response.Headers.Add(HttpResponseHeader.CacheControl, "no-cache");
                         byte[] buffer = new byte[1024];
                         int bytesReadFromFile;
                         while ((bytesReadFromFile = input.Read(buffer, 0, buffer.Length)) > 0)
@@ -97,6 +101,8 @@ namespace WebServer
 
         public void Stop()
         {
+            _listener.Stop();
+            _listener.Close();
         }
     }
 }
